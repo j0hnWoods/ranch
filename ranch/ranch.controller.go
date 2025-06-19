@@ -2,6 +2,7 @@ package ranch
 
 import (
 	"fmt"
+	"net/http"
 )
 
 type RanchController struct {
@@ -26,8 +27,35 @@ type Project struct {
 	TableName   string
 }
 
+// HandleHTTP - основной HTTP обработчик (обёртка для ActionIndex)
+func (c *RanchController) HandleHTTP(w http.ResponseWriter, r *http.Request) {
+	// Определяем домен из Host заголовка
+	hostname := r.Host
+	if hostname == "" {
+		hostname = "localhost:8080" // Fallback для тестирования
+	}
+
+	// Логирование запроса
+	fmt.Printf("HTTP Request: %s %s from %s (User-Agent: %s)\n",
+		r.Method, r.URL.Path, hostname, r.UserAgent())
+
+	// Обработка только GET запросов на главную
+	if r.Method != "GET" || r.URL.Path != "/" {
+		http.NotFound(w, r)
+		return
+	}
+
+	// Вызов основной логики
+	response := c.ActionIndex(hostname, r)
+
+	// Отправка ответа
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(response))
+}
+
 // ActionIndex - главный метод контроллера
-func (c *RanchController) ActionIndex(hostname string) string {
+func (c *RanchController) ActionIndex(hostname string, r *http.Request) string {
 	fmt.Printf("ActionIndex called for domain: %s\n", hostname)
 
 	// 1. Поиск домена
@@ -53,6 +81,7 @@ func (c *RanchController) ActionIndex(hostname string) string {
 
 	// 5. Получение контента
 	result := middleware.GetQueryResult()
+	fmt.Printf("%v\n", result)
 
 	// 6. Рендеринг в зависимости от типа пользователя
 	if isBot || isDebugEnabled {
