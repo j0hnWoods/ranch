@@ -7,29 +7,22 @@ import (
 )
 
 func main() {
-	controller := ranch.RanchController{}
-	middleware := ranch.Middleware{}
-	service := ranch.RanchService{}
-	render := ranch.RanchRender{}
+	app := ranch.NewApp()
 
-	// Инициализация зависимостей
-	controller.Service = &service
-	controller.Render = &render
-
-	// Настройка HTTP роутинга
-	http.HandleFunc("/", controller.HandleHTTP)
-
-	// Дополнительные эндпоинты
-	// http.HandleFunc("/robots.txt", controller.HandleRobots)
-	// http.HandleFunc("/sitemap.xml", controller.HandleSitemap)
-	// http.HandleFunc("/ping", controller.HandlePing)
+	// Регистрация middleware в нужном порядке
+	app.Use(ranch.DomainMiddleware)
+	app.Use(ranch.BotDetectionMiddleware)
+	app.Use(ranch.StatisticsMiddleware)
+	app.Use(ranch.RedirectMiddleware)
+	app.Use(ranch.ContentMiddleware)
+	app.Use(ranch.RenderMiddleware)
 
 	// Запуск HTTP сервера
+	http.HandleFunc("/", app.Handle)
 	port := ":8080"
+	fmt.Printf("SEO Farm server started on %s\n", port)
 
 	if err := http.ListenAndServe(port, nil); err != nil {
 		panic(err)
 	}
-
-	fmt.Printf("%v\n%v\n%v\n%v\n", controller, middleware, service, render)
 }
