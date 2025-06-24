@@ -7,22 +7,37 @@ import (
 )
 
 func main() {
-	app := ranch.NewApp()
+	// Инициализация компонентов через Factory
+	factory := ranch.NewComponentFactory()
 
-	// Регистрация middleware в нужном порядке
-	app.Use(ranch.DomainMiddleware)
-	app.Use(ranch.BotDetectionMiddleware)
-	app.Use(ranch.StatisticsMiddleware)
-	app.Use(ranch.RedirectMiddleware)
-	app.Use(ranch.ContentMiddleware)
-	app.Use(ranch.RenderMiddleware)
+	// Graceful shutdown
+	defer func() {
+		if err := factory.Close(); err != nil {
+			fmt.Printf("Error closing factory: %v\n", err)
+		}
+	}()
 
-	// Запуск HTTP сервера
-	http.HandleFunc("/", app.Handle)
-	port := ":8080"
-	fmt.Printf("SEO Farm server started on %s\n", port)
+	// Создание основного контроллера
+	controller := factory.CreateController()
 
-	if err := http.ListenAndServe(port, nil); err != nil {
+	// Настройка middleware цепочки
+	handler := ranch.WithMiddleware(
+		controller.HandleHTTP,
+		ranch.LoggingMiddleware,
+		ranch.DomainMiddleware(factory.GetDomainRepository(), factory.GetProjectRepository()),
+		ranch.BotDetectionMiddleware,
+		ranch.StatisticsMiddleware,
+		ranch.SecurityMiddleware,
+	)
+
+	// Роутинг
+	http.HandleFunc("/", handler)
+	http.HandleFunc("/robots.txt", ranch.WithMiddleware(controller.HandleRobots, ranch.LoggingMiddleware))
+	http.HandleFunc("/sitemap.xml", ranch.WithMiddleware(controller.HandleSitemap, ranch.LoggingMiddleware))
+	http.HandleFunc("/health", ranch.WithMiddleware(controller.HandleHealth, ranch.LoggingMiddleware))
+
+	fmt.Println("SEO Farm server starting on :8080")
+	if err := http.ListenAndServe(":8080", nil); err != nil {
 		panic(err)
 	}
 }
